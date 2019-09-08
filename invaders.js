@@ -38,6 +38,20 @@ var lastPlayerBulletTime = 0;
 
 var explosions;
 
+var score = 0;
+
+var scorePrefix = 'SCORE: ';
+
+var scoreText;
+
+var playerLives;
+
+var isGameOver = false;
+
+var gameOverModal;
+
+var gameOverText;
+
 var Bullet = new Phaser.Class({
     Extends: Phaser.GameObjects.Image,
 
@@ -152,6 +166,16 @@ function handleCreate() {
     starfield = this.add.tileSprite(0, 0, 2048, 2048, 'starfield');
     starfield.setScale(1);
 
+    scoreText = this.add.text(10, 15, scorePrefix + score);
+
+    playerLives = this.add.group();
+    this.add.text(
+        this.sys.canvas.width - 185,
+        15,
+        `LIVES:`
+    );
+    createPlayerLives(this);
+
     player = this.physics.add.sprite(400, 500, 'ship');
     player.setOrigin(0.5, 0);
     player.setCollideWorldBounds(true);
@@ -170,12 +194,14 @@ function handleCreate() {
     cursors = this.input.keyboard.createCursorKeys();
 
     firePlayerBullet(this);
+
+    createGameOverModal(this);
 }
 
-function handleUpdate() {
-    starfield.tilePositionY += 2;
+function handleUpdate(time) {
 
-    console.log(cursors)
+    starfield.tilePositionY += isGameOver ? 0.5 : 2;
+
     if (cursors.left.isDown) {
         player.setVelocityX( -200 );
     }
@@ -186,6 +212,10 @@ function handleUpdate() {
 
     else {
         player.setVelocityX( 0 );
+    }
+
+    if (time > lastAlienBulletTime && !isGameOver) {
+        fireEnemyBullet(player, time, this);
     }
 }
 
@@ -214,7 +244,7 @@ function createBullets(imgaeName, sceneRef) {
 }
 
 function fireEnemyBullet(player, time, sceneRef) {
-    var enemyBullet = enemyBullets/getComputedStyle().setActive(true).setVisible(true);
+    var enemyBullet = enemyBullets.get().setActive(true).setVisible(true);
 
     livingAliens = aliens.getChildren().filter( alien => alien.active === true);
 
@@ -227,12 +257,10 @@ function fireEnemyBullet(player, time, sceneRef) {
         var randomAlien = livingAliens[randomAlienNumber];
 
         if (time - randomAlien.lastFired > 4000) {
-            randomAlien.lastFired = to,e;
 
+            randomAlien.lastFired = time;
             enemyBullet.fire(randomAlien, player);
-
             sceneRef.physics.add.collider(player, enemyBullet, handlePlayerCollision);
-
             lastAlienBulletTime = time + 2000;
         }
     }
@@ -271,6 +299,15 @@ function handlePlayerCollision(player, bullet) {
     
     if (player.active === true && bullet.active === true) {
         handleCollision(player, bullet);
+
+        var life = playerLives.getFirstAlive();
+        if (life) {
+            life.setActive(false).setVisible(false);
+        }
+
+        if (playerLives.countActive() < 1) {
+            handleGameOver(false);
+        }
     }
 }
 
@@ -278,5 +315,92 @@ function handleEnemyCollision(bullet, alien) {
     if (bullet.active === true && alien.active === true) {
         handleCollision(alien, bullet);
         alien.setActive(false).setVisible(false);
+
+        score += 20;
+        scoreText.setText(scorePrefix + score);
+
+        if (aliens.countActive() === 0) {
+            score += 1000;
+            scoreText.setText(scorePrefix + score);
+
+            handleGameOver(true);
+        }
     }
+}
+
+function createPlayerLives(sceneRef) {
+
+    var x = sceneRef.sys.canvas.width - 105;
+
+    for (var i = 0; i < 3; i++ ) {
+        var lifeX = x + 40 * i;
+
+        var life = playerLives.create(lifeX, 25, 'ship');
+
+        life.setOrigin(0.5, 0.5);
+        life.setScale(0.5);
+        life.alpha = 0.4;
+    }
+}
+
+function createGameOverModal(sceneRef) {
+    gameOverModal = sceneRef.add.graphics();
+    gameOverModal.fillStyle(0x303030, 0.8);
+    gameOverModal.fillRect(
+        0,
+        0,
+        sceneRef.sys.canvas.width,
+        sceneRef.sys.canvas.height
+    );
+    gameOverModal.visible = false;
+
+    gameOverText = sceneRef.add.text(
+        sceneRef.sys.canvas.width / 2,
+        sceneRef.sys.canvas.height / 2,
+        ' ',
+        {
+            align: 'center'
+        }
+    );
+    gameOverText.setOrigin(0.5, 0.5);
+    gameOverText.visible = false;
+
+    sceneRef.input.on('pointerdown', (pointer) => {
+        if (isGameOver) {
+            bullets.clear(true, true);
+            enemyBullets.clear(true, true);
+            explosions.clear(true, true);
+            aliens.clear(true, true);
+            playerLives.clear(true, true);
+            createAliens();
+            createPlayerLives(sceneRef);
+            player.setActive(true).setVisible(true);
+            gameOverText.visible = false;
+            gameOverModal.visible = false;
+            isGameOver = false;
+        }
+    }, sceneRef);
+}
+
+function handleGameOver(didPlayerWin) {
+    isGameOver = true;
+
+    var removeDisableItem = function(item) {
+        item.setActive(false).setVisible(false);
+    };
+
+    Phaser.Utils.Array.Each(bullets.getChildren(), removeDisableItem);
+    Phaser.Utils.Array.Each(enemyBullets.getChildren(), removeDisableItem);
+    Phaser.Utils.Array.Each(aliens.getChildren(), removeDisableItem);
+
+    player.setActive(false).setVisible(false);
+
+    var displayText = (didPlayerWin)
+        ? 'YOU WON! \n\n Click to restart.'
+        : 'GAME OVER \n\n Click to restart.';
+        
+    gameOverText.setText(displayText);
+
+    gameOverModal.visible = true;
+    gameOverText.visible = true;
 }
