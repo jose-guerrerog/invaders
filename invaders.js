@@ -188,7 +188,7 @@ function handleCreate() {
 
     explosions = this.add.group({
         defaultKey: 'kaboom',
-        maxSize: 30,
+        maxSize: 35,
     });
 
     cursors = this.input.keyboard.createCursorKeys();
@@ -286,12 +286,15 @@ function firePlayerBullet(sceneRef) {
 function handleCollision(target, bullet) {
     if (target.active === true && bullet.active === true ) {
         bullet.setActive(false).setVisible(false);
-        var explosion = explosions.get().setActive(true);
-
-        explosion.setOrigin(0.5, 0.5);
-        explosion.x = target.x;
-        explosion.y = target.y;
-        explosion.play('explode');
+        var explosion = explosions.get()
+        
+        if (explosion) {
+            explosion.setActive(true);
+            explosion.setOrigin(0.5, 0.5);
+            explosion.x = target.x;
+            explosion.y = target.y;
+            explosion.play('explode');
+        }
     }
 }
 
